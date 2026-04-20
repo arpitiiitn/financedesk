@@ -197,10 +197,22 @@ def add_loan():
     write_json(LOANS_FILE, loans)
     return jsonify(loan), 201
 
+@app.route("/api/loans/<loan_id>", methods=["PUT"])
+def update_loan(loan_id):
+    loans = read_json(LOANS_FILE)
+    data  = request.json or {}
+    for l in loans:
+        if l["id"] == loan_id:
+            for key, val in data.items():
+                if key not in ("id", "created_at"):
+                    l[key] = val
+            write_json(LOANS_FILE, loans)
+            return jsonify(l)
+    return jsonify({"error": "Not found"}), 404
+
 @app.route("/api/loans/<loan_id>", methods=["DELETE"])
 def delete_loan(loan_id):
     write_json(LOANS_FILE, [l for l in read_json(LOANS_FILE) if l["id"] != loan_id])
-    # Also delete related payments
     write_json(PAYMENTS_FILE, [p for p in read_json(PAYMENTS_FILE) if p["loan_id"] != loan_id])
     return jsonify({"ok": True})
 
@@ -292,9 +304,13 @@ def update_purchase(purchase_id):
     for p in purchases:
         if p["id"] == purchase_id:
             if "add_payment" in data:
+                # Legacy: add incremental payment
                 p["amount_paid"] = round(float(p.get("amount_paid",0)) + float(data["add_payment"]), 2)
-            if "due_date" in data:
-                p["due_date"] = data["due_date"]
+            else:
+                # Full edit: update any field except id and created_at
+                for key, val in data.items():
+                    if key not in ("id", "created_at"):
+                        p[key] = val
             write_json(PURCHASES_FILE, purchases)
             return jsonify(p)
     return jsonify({"error": "Not found"}), 404
