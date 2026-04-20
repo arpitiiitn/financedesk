@@ -303,11 +303,11 @@ tbody tr.row-selected{background:#eff6ff!important;outline:2px solid var(--blue)
     <button class="nav-item" data-page="add-purchase"><span class="nav-icon">＋</span> Add Purchase</button>
   </nav>
   <div class="sidebar-footer">
-    <button class="btn-backup" onclick="backupData()">⬇ Export JSON Backup</button>
+    <button class="btn-backup" onclick="downloadAllDataPDF()" style="background:linear-gradient(135deg,rgba(232,160,32,.2),rgba(232,160,32,.1));color:var(--amber);border-color:rgba(232,160,32,.3)">📄 Download All Data PDF</button>
     <div class="sidebar-date" id="sidebar-date"></div>
-    <div style="margin-top:12px;text-align:center;font-size:.65rem;color:#2a4060;line-height:1.6">
-      Made with ❤️ by<br/>
-      <span style="color:#3a5878;font-weight:600">Arpit Yadav</span>
+    <div style="margin-top:14px;text-align:center;padding:10px 8px;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:.68rem;color:#4a6080;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Made with ❤️ by</div>
+      <div style="font-family:'Syne',sans-serif;font-size:1rem;font-weight:800;color:var(--amber);letter-spacing:.04em">Arpit Yadav</div>
     </div>
   </div>
 </aside>
@@ -619,7 +619,10 @@ tbody tr.row-selected{background:#eff6ff!important;outline:2px solid var(--blue)
     </div>
     <div class="pc-error" id="pc-error"></div>
   </div>
-  <div class="pc-branding">Made with ❤️ by Arpit Yadav</div>
+  <div style="text-align:center;margin-top:10px">
+    <div style="font-size:.7rem;color:#3a5070;letter-spacing:.08em;text-transform:uppercase">Made with ❤️ by</div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:var(--amber);letter-spacing:.06em;margin-top:2px">Arpit Yadav</div>
+  </div>
 </div>
 
 <!-- ── EDIT LOAN MODAL ───────────────────────────────── -->
@@ -1746,13 +1749,23 @@ function generatePDF() {
     }
   });
 
-  // Footer
+  // Footer on every page — with Arpit Yadav branding
   const total = doc.internal.getNumberOfPages();
   for (let i=1;i<=total;i++) {
     doc.setPage(i);
-    doc.setFontSize(7); doc.setTextColor(150,150,150);
-    doc.text('FinanceDesk · Page '+i+' of '+total, pageW/2, 292, {align:'center'});
-    doc.text('Confidential — Internal use only', margin, 292);
+    // Bottom bar
+    doc.setFillColor(15,28,46);
+    doc.rect(0, 287, pageW, 10, 'F');
+    // Left: page number
+    doc.setFontSize(7); doc.setTextColor(100,120,150);
+    doc.text('FinanceDesk · Page '+i+' of '+total, margin, 293);
+    // Center: confidential
+    doc.text('Confidential — Internal use only', pageW/2, 293, {align:'center'});
+    // Right: Arpit Yadav branding
+    doc.setTextColor(232,160,32);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7);
+    doc.text('Made with ❤  by Arpit Yadav', pageW-margin, 293, {align:'right'});
   }
 
   const fname = headerClient
@@ -1946,7 +1959,320 @@ async function submitEditPurchase() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   BACKUP — downloads ZIP of all JSON files from the Flask server
+   DOWNLOAD ALL DATA AS PDF
+   Generates a complete business report — every client, loan, purchase,
+   and payment in one professionally formatted PDF document.
+══════════════════════════════════════════════════════════════════════════ */
+async function downloadAllDataPDF() {
+  toast('Generating full report… please wait', '');
+  try {
+    await refreshCache();
+  } catch(e) {
+    toast('Could not load data: ' + e.message, 'red');
+    return;
+  }
+
+  const {jsPDF} = window.jspdf;
+  const doc    = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const pageW  = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  let y        = margin;
+
+  // ── Helper: section title bar ───────────────────────────────────────────
+  function sectionTitle(title, color=[15,28,46]) {
+    if (y + 12 > 280) { doc.addPage(); y = margin; }
+    doc.setFillColor(...color);
+    doc.rect(margin, y, pageW-margin*2, 9, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.text(title, margin+3, y+6);
+    doc.setTextColor(0,0,0);
+    y += 12;
+  }
+
+  // ── Helper: check page space ─────────────────────────────────────────────
+  function checkPage(need=35) {
+    if (y + need > 280) { doc.addPage(); y = margin; }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // COVER / HEADER
+  // ═══════════════════════════════════════════════════════════════════════
+  // Dark navy header band
+  doc.setFillColor(15,28,46);
+  doc.rect(0, 0, pageW, 40, 'F');
+
+  // Logo box
+  doc.setFillColor(232,160,32);
+  doc.roundedRect(margin, 8, 20, 20, 3, 3, 'F');
+  doc.setTextColor(15,28,46);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.text('₹', margin+6, 22);
+
+  // App title
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(20);
+  doc.setFont('helvetica','bold');
+  doc.text('FinanceDesk', margin+26, 18);
+  doc.setFontSize(9);
+  doc.setTextColor(140,168,200);
+  doc.setFont('helvetica','normal');
+  doc.text('Loan & Credit Management System', margin+26, 25);
+  doc.text('Complete Business Report', margin+26, 31);
+
+  // Report date (top right)
+  const reportDate = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+  doc.setTextColor(140,168,200);
+  doc.setFontSize(8);
+  doc.text('Generated: ' + reportDate, pageW-margin, 18, {align:'right'});
+  doc.text('Total Clients: ' + CACHE.clients.length, pageW-margin, 25, {align:'right'});
+  doc.text('Total Loans: '   + CACHE.loans.length,   pageW-margin, 31, {align:'right'});
+
+  // Amber accent line
+  doc.setFillColor(232,160,32);
+  doc.rect(0, 40, pageW, 2, 'F');
+
+  // Branding line right under header
+  doc.setFillColor(22,35,56);
+  doc.rect(0, 42, pageW, 8, 'F');
+  doc.setTextColor(232,160,32);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(7.5);
+  doc.text('Made with ❤  by Arpit Yadav', pageW/2, 47.5, {align:'center'});
+
+  y = 56;
+
+  // ── Summary chips row ──────────────────────────────────────────────────
+  const loans     = CACHE.loans.map(enrichLoan);
+  const purchases = CACHE.purchases.map(enrichPurchase);
+  const totalPrincipal  = loans.reduce((s,l)=>s+l.amount,0);
+  const totalCollected  = CACHE.payments.reduce((s,p)=>s+parseFloat(p.amount),0);
+  const loanOutstanding = loans.reduce((s,l)=>s+Math.max(0,l.remaining_balance),0);
+  const purchOutstanding= purchases.reduce((s,p)=>s+Math.max(0,p.remaining),0);
+  const grandOutstanding= loanOutstanding + purchOutstanding;
+
+  const chips = [
+    ['Clients',   CACHE.clients.length,     [37,99,235]],
+    ['Loans',     CACHE.loans.length,        [15,28,46]],
+    ['Collected', fmt(totalCollected),       [30,150,100]],
+    ['Outstanding', fmt(grandOutstanding),   grandOutstanding>0?[217,63,63]:[30,150,100]],
+    ['Purchases', CACHE.purchases.length,    [180,100,0]],
+  ];
+  const chipW = (pageW - margin*2) / chips.length;
+  chips.forEach(([label, val, color], i) => {
+    const cx = margin + i * chipW;
+    doc.setFillColor(...color);
+    doc.roundedRect(cx, y, chipW-3, 16, 2, 2, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','normal'); doc.setFontSize(6.5);
+    doc.text(String(label).toUpperCase(), cx+3, y+5.5);
+    doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.text(String(val), cx+3, y+13);
+  });
+  y += 22;
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SECTION 1: ALL CLIENTS
+  // ═══════════════════════════════════════════════════════════════════════
+  checkPage(20);
+  sectionTitle('SECTION 1 — CLIENTS (' + CACHE.clients.length + ')', [30,80,160]);
+
+  if (CACHE.clients.length) {
+    doc.autoTable({
+      startY: y, margin:{left:margin, right:margin},
+      head: [['#','Name','Father/Husband','Phone','Address','ID Proof','Member Since']],
+      body: CACHE.clients.map((c,i) => [
+        i+1, c.name||'—', c.guardian||'—', c.phone||'—',
+        c.address||'—', c.id_proof||'—', fmtDate(c.created_at)
+      ]),
+      theme: 'grid',
+      headStyles: {fillColor:[30,80,160], textColor:255, fontSize:7.5, fontStyle:'bold'},
+      bodyStyles: {fontSize:7.5, cellPadding:2},
+      alternateRowStyles: {fillColor:[240,245,255]},
+      columnStyles: {0:{cellWidth:8}, 1:{cellWidth:30}, 2:{cellWidth:30}, 3:{cellWidth:22}, 4:{cellWidth:35}, 5:{cellWidth:22}},
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SECTION 2: ALL LOANS
+  // ═══════════════════════════════════════════════════════════════════════
+  checkPage(20);
+  sectionTitle('SECTION 2 — LOANS (' + loans.length + ')', [15,28,46]);
+
+  if (loans.length) {
+    doc.autoTable({
+      startY: y, margin:{left:margin, right:margin},
+      head: [['#','Client','Date','Principal','Rate','Interest','Payable','Paid','Balance','Collateral','Status']],
+      body: loans.map((l,i) => [
+        i+1,
+        clientName(l.client_id),
+        fmtDate(l.date_taken),
+        fmt(l.amount),
+        l.rate+'%/'+(l.interest_type==='simple'?'mo':'yr'),
+        fmt(l.interest_accrued),
+        fmt(l.total_payable),
+        fmt(l.total_paid),
+        fmt(l.remaining_balance),
+        l.collateral||'—',
+        l.status
+      ]),
+      theme: 'grid',
+      headStyles: {fillColor:[15,28,46], textColor:255, fontSize:7, fontStyle:'bold'},
+      bodyStyles: {fontSize:7, cellPadding:1.8},
+      alternateRowStyles: {fillColor:[245,247,252]},
+      didParseCell: (d) => {
+        // Highlight overdue/active balance in red
+        if (d.section==='body' && d.column.index===8) {
+          const val = parseFloat(String(d.cell.raw).replace(/[₹,]/g,''));
+          if (val > 0) { d.cell.styles.textColor = [217,63,63]; d.cell.styles.fontStyle='bold'; }
+          else if (val <= 0) { d.cell.styles.textColor = [30,150,100]; }
+        }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SECTION 3: REPAYMENT HISTORY (per loan)
+  // ═══════════════════════════════════════════════════════════════════════
+  const allPayments = CACHE.payments;
+  if (allPayments.length) {
+    checkPage(20);
+    sectionTitle('SECTION 3 — LOAN REPAYMENT HISTORY (' + allPayments.length + ' entries)', [37,99,235]);
+
+    doc.autoTable({
+      startY: y, margin:{left:margin, right:margin},
+      head: [['#','Client','Loan Principal','Payment Date','Amount Paid','Note']],
+      body: allPayments
+        .sort((a,b)=>a.date.localeCompare(b.date))
+        .map((p,i) => {
+          const loan = CACHE.loans.find(l=>l.id===p.loan_id);
+          return [
+            i+1,
+            loan ? clientName(loan.client_id) : '—',
+            loan ? fmt(loan.amount) : '—',
+            fmtDate(p.date),
+            fmt(p.amount),
+            p.note||'—'
+          ];
+        }),
+      theme: 'grid',
+      headStyles: {fillColor:[37,99,235], textColor:255, fontSize:7.5, fontStyle:'bold'},
+      bodyStyles: {fontSize:7.5, cellPadding:2},
+      alternateRowStyles: {fillColor:[240,245,255]},
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SECTION 4: ALL PURCHASES
+  // ═══════════════════════════════════════════════════════════════════════
+  checkPage(20);
+  sectionTitle('SECTION 4 — CREDIT PURCHASES (' + purchases.length + ')', [180,100,0]);
+
+  if (purchases.length) {
+    doc.autoTable({
+      startY: y, margin:{left:margin, right:margin},
+      head: [['#','Client','Product','Price','Paid','Balance','Purchase Date','Due Date','Status']],
+      body: purchases.map((p,i) => [
+        i+1,
+        clientName(p.client_id),
+        p.product,
+        fmt(p.price),
+        fmt(p.amount_paid),
+        fmt(p.remaining),
+        fmtDate(p.purchase_date),
+        fmtDate(p.due_date),
+        p.status
+      ]),
+      theme: 'grid',
+      headStyles: {fillColor:[180,100,0], textColor:255, fontSize:7.5, fontStyle:'bold'},
+      bodyStyles: {fontSize:7.5, cellPadding:2},
+      alternateRowStyles: {fillColor:[255,250,240]},
+      didParseCell: (d) => {
+        if (d.section==='body' && d.column.index===5) {
+          const val = parseFloat(String(d.cell.raw).replace(/[₹,]/g,''));
+          if (val > 0) { d.cell.styles.textColor=[217,63,63]; d.cell.styles.fontStyle='bold'; }
+          else { d.cell.styles.textColor=[30,150,100]; }
+        }
+        if (d.section==='body' && d.column.index===8 && d.cell.raw==='Overdue') {
+          d.cell.styles.textColor=[217,63,63]; d.cell.styles.fontStyle='bold';
+        }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SECTION 5: GRAND SUMMARY
+  // ═══════════════════════════════════════════════════════════════════════
+  checkPage(50);
+  sectionTitle('SECTION 5 — GRAND SUMMARY', [30,150,100]);
+
+  const summaryRows = [
+    ['Total Clients',             String(CACHE.clients.length)],
+    ['Total Loans',               String(loans.length)],
+    ['Total Loan Principal',      fmt(totalPrincipal)],
+    ['Total Interest Accrued',    fmt(loans.reduce((s,l)=>s+l.interest_accrued,0))],
+    ['Total Loan Repaid',         fmt(totalCollected)],
+    ['Loan Outstanding Balance',  fmt(loanOutstanding)],
+    ['Total Credit Purchases',    String(purchases.length)],
+    ['Total Purchase Value',      fmt(purchases.reduce((s,p)=>s+p.price,0))],
+    ['Purchase Amount Paid',      fmt(purchases.reduce((s,p)=>s+parseFloat(p.amount_paid),0))],
+    ['Purchase Outstanding',      fmt(purchOutstanding)],
+    ['GRAND TOTAL OUTSTANDING',   fmt(grandOutstanding)],
+  ];
+
+  doc.autoTable({
+    startY: y, margin:{left:margin, right:margin},
+    body: summaryRows,
+    theme: 'plain',
+    styles: {fontSize:9, cellPadding:3},
+    columnStyles: {
+      0: {fontStyle:'bold', cellWidth:90, fillColor:[240,250,244]},
+      1: {cellWidth:50, halign:'right'}
+    },
+    didParseCell: (d) => {
+      if (d.row.index === summaryRows.length-1) {
+        d.cell.styles.fillColor = [15,28,46];
+        d.cell.styles.textColor = [232,160,32];
+        d.cell.styles.fontStyle = 'bold';
+        d.cell.styles.fontSize  = 11;
+        d.cell.styles.cellPadding = 4;
+      }
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // FOOTER ON EVERY PAGE — with Arpit Yadav branding
+  // ═══════════════════════════════════════════════════════════════════════
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i=1; i<=totalPages; i++) {
+    doc.setPage(i);
+    doc.setFillColor(15,28,46);
+    doc.rect(0, 287, pageW, 10, 'F');
+    // Page number
+    doc.setFontSize(7); doc.setTextColor(100,120,150); doc.setFont('helvetica','normal');
+    doc.text('FinanceDesk · Page '+i+' of '+totalPages, margin, 293);
+    // Center
+    doc.text('Confidential — Internal use only', pageW/2, 293, {align:'center'});
+    // Right — Arpit Yadav branding in amber
+    doc.setTextColor(232,160,32);
+    doc.setFont('helvetica','bold');
+    doc.text('Made with ❤  by Arpit Yadav', pageW-margin, 293, {align:'right'});
+  }
+
+  // Save
+  const filename = 'FinanceDesk_CompleteReport_' + today() + '.pdf';
+  doc.save(filename);
+  toast('Complete report downloaded!', 'green');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BACKUP — JSON backup (kept for developer use via /api/backup)
 ══════════════════════════════════════════════════════════════════════════ */
 function backupData(){
   window.location.href='/api/backup';
