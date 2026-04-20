@@ -1135,28 +1135,47 @@ let currentImages = { loan: [], purchase: [] };
 let activeStreams  = {};
 
 /**
- * handleImagesUpload — reads ALL selected files and appends to array
+ * compressImage — resizes & compresses any image to max 800px wide, JPEG 0.7 quality
+ * This keeps base64 size small (~50-100KB) so uploads don't timeout on Railway
+ */
+function compressImage(dataUrl, maxWidth = 800, quality = 0.7) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      // Scale down if wider than maxWidth
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * handleImagesUpload — reads ALL selected files, compresses them, appends to array
  * @param {HTMLInputElement} input
  * @param {'loan'|'purchase'} which
  */
-function handleImagesUpload(input, which) {
-  const files = Array.from(input.files);
+async function handleImagesUpload(input, which) {
+  const files = Array.from(input.files).filter(f => f.type.startsWith('image/'));
   if (!files.length) return;
+  toast(`Compressing ${files.length} photo${files.length>1?'s':''}…`);
   let loaded = 0;
-  files.forEach(file => {
-    if (!file.type.startsWith('image/')) return;
+  for (const file of files) {
     const reader = new FileReader();
-    reader.onload = e => {
-      currentImages[which].push(e.target.result);
-      loaded++;
-      if (loaded === files.length) {
-        renderImagePreviews(which);
-        toast(`${files.length} photo${files.length>1?'s':''} added!`, 'green');
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-  // Reset input so same file can be re-selected if needed
+    const raw = await new Promise(res => {
+      reader.onload = e => res(e.target.result);
+      reader.readAsDataURL(file);
+    });
+    const compressed = await compressImage(raw);
+    currentImages[which].push(compressed);
+    loaded++;
+  }
+  renderImagePreviews(which);
+  toast(`${loaded} photo${loaded>1?'s':''} added!`, 'green');
   input.value = '';
 }
 
@@ -1214,17 +1233,18 @@ async function startCamera(videoId, wrapId) {
 }
 
 /**
- * capturePhoto — snaps current video frame and ADDS it to the array
- * (camera stays open so user can take more shots)
+ * capturePhoto — snaps current video frame, compresses it, adds to array
+ * Camera stays open so user can take more shots
  */
-function capturePhoto(videoId, which) {
+async function capturePhoto(videoId, which) {
   const video  = document.getElementById(videoId);
   const canvas = document.createElement('canvas');
   canvas.width  = video.videoWidth  || 640;
   canvas.height = video.videoHeight || 480;
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-  currentImages[which].push(dataUrl);
+  const raw        = canvas.toDataURL('image/jpeg', 0.9);
+  const compressed = await compressImage(raw);
+  currentImages[which].push(compressed);
   renderImagePreviews(which);
   toast(`Photo ${currentImages[which].length} captured! Capture more or cancel.`, 'green');
   // Camera stays open — user clicks ✕ Cancel when done
