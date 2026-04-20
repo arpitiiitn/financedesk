@@ -16,6 +16,10 @@ app = Flask(__name__)
 # ── Secret key (set SECRET_KEY env variable on Railway) ──────────────────────
 app.secret_key = os.environ.get("SECRET_KEY", "financedesk-local-key-change-me")
 
+# ── Allow large uploads (base64 images can be several MB each) ───────────────
+# 50MB limit — enough for many high-res photos
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
+
 # ── CORS — allow browser to call API from any origin ──────────────────────────
 @app.after_request
 def add_cors_headers(response):
